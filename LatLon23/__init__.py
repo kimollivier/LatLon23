@@ -25,6 +25,7 @@ Features:
     Calculate distances between lat/lon pairs using either the FAI or WGS84 approximation
 Written July 22, 2014
 Author: Gen Del Raye
+Editor: Kim Ollivier 27 June 2015 added implied quadrants from leading signs on string inputs
 '''
 # TODO: Write methods to convert -180 to 180 longitudes to 0 to 360 and vice versa
 
@@ -217,12 +218,12 @@ class Latitude(GeoCoord):
         '''
         Given a hemisphere identifier, set the sign of the coordinate to match that hemisphere
         '''
-        if hemi_str == 'S':
+        if hemi_str == 'S' or hemi_str == '-':
             self.degree = abs(self.degree)*-1
             self.minute = abs(self.minute)*-1
             self.second = abs(self.second)*-1
             self._update()
-        elif hemi_str == 'N':
+        elif hemi_str == 'N' or hemi_str == '+':
             self.degree = abs(self.degree)
             self.minute = abs(self.minute)
             self.second = abs(self.second)
@@ -270,12 +271,12 @@ class Longitude(GeoCoord):
         '''
         Given a hemisphere identifier, set the sign of the coordinate to match that hemisphere
         '''
-        if hemi_str == 'W':
+        if hemi_str == 'W' or  hemi_str == '-':
             self.degree = abs(self.degree)*-1
             self.minute = abs(self.minute)*-1
             self.second = abs(self.second)*-1
             self._update()
-        elif hemi_str == 'E':
+        elif hemi_str == 'E' or hemi_str == '+':
             self.degree = abs(self.degree)
             self.minute = abs(self.minute)
             self.second = abs(self.second)
@@ -297,7 +298,7 @@ def string2geocoord(coord_str, coord_class, format_str = 'D'):
           Can be either Latitude or Longitude
         format_str (str) - a string representation of the sections of coord_str. Possible letter values
         correspond to the keys of the dictionary format2value, where
-              'H' is a hemisphere identifier (e.g. N, S, E or W)
+              'H' is a hemisphere identifier (e.g. N, S, E or W or + or -)
               'D' is a coordinate in decimal degrees notation
               'd' is a coordinate in degrees notation
               'M' is a coordinate in decimal minutes notaion
@@ -306,6 +307,7 @@ def string2geocoord(coord_str, coord_class, format_str = 'D'):
               Any other characters (e.g. ' ' or ', ') will be treated as a separator between the above components.
           All components should be separated by the '%' character. For example, if the coord_str is
           '5, 52, 59.88_N', the format_str would be 'd%, %m%, %S%_%H'
+          allow for leading sign eg ('+5 52 59.88', '-162 4 59.88') 'H% d% %M% %s' for ('5 52 59.88 N', '162 4 59.88 W')
     Returns:
         GeoCoord object initialized with the coordinate information from coord_str
     '''
@@ -324,7 +326,10 @@ def string2geocoord(coord_str, coord_class, format_str = 'D'):
         new_coord_start = re.search('\d', coord_str).start() # Find the beginning of the coordinate
         new_format_start = re.search('[a-gi-zA-GI-Z]', format_str).start() # Find the first non-hemisphere identifier
         format_str = '% %'.join((format_str[new_format_start:], format_str[0])) # Move hemisphere identifier to the back
-        coord_str = ' '.join((coord_str[new_coord_start:], coord_str[0])) # Move hemisphere identifier to the back
+        if coord_str[0] in ['NSEW-+']:
+            coord_str = ' '.join((coord_str[new_coord_start:], coord_str[0])) # Move hemisphere identifier to the back
+        else: # assume implied '+'
+            coord_str = ' '.join((coord_str[new_coord_start:], '+')) # Move hemisphere identifier to the back
     format_elements = format_str.split('%')
     separators = [sep for sep in format_elements if sep not in format2value.keys()] # E.g. ' ', '_' or ', ' characters
     separators.append('%') # Dummy separator for the final part of the coord_str
@@ -710,7 +715,9 @@ def demonstration():
     palmyra = LatLon(Latitude(degree = 5, minute = 52, second = 59.88), Longitude(degree = -162, minute = -4.998)) # or more complicated!
     print(palmyra.to_string('d% %m% %S% %H')) # Print coordinates to degree minute second (returns ('5 52 59.88 N', '162 4 59.88 W'))
     palmyra = string2latlon('5 52 59.88 N', '162 4 59.88 W', 'd% %m% %S% %H') # Initialize from more complex string
+    palmyra2 = string2latlon('5 52 59.88', '-162 4 59.88', 'H% d% %m% %S') # Initialize from leading signs as hemispheres +/- or implied +
     print(palmyra.to_string('d%_%M')) # Print coordinates as degree minutes separated by underscore (returns ('5_52.998', '-162_4.998'))
+    print(palmyra2.to_string('d%_%M')) # check that using signs is equivalent to quadrant strings
     palmyra = string2latlon('N 5, 52.998', 'W 162, 4.998', 'H% %d%, %M') # An alternative complex string
     print(palmyra.to_string('D')) # Print coordinate to decimal degrees (returns ('5.8833', '-162.0833'))
     honolulu = LatLon(Latitude(21.3), Longitude(-157.8167))
